@@ -1,0 +1,195 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "apiProfile": "2018-06-01-profile",
+    "parameters": {
+        "prefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Name prefix of the resources to create."
+            }
+        },
+        "location": {
+            "defaultValue": "West Europe",
+            "type": "string"
+        },
+        "support_level": {
+            "type": "string",
+            "allowedValues": [
+                "small",
+                "medium",
+                "large"
+            ]
+        },
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "User name for the Virtual Machine."
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the Virtual Machine."
+            }
+        },
+        "ubuntuOSVersion": {
+            "type": "string",
+            "defaultValue": "18.04-LTS",
+            "allowedValues": [
+                "14.04.5-LTS",
+                "16.04.0-LTS",
+                "18.04-LTS"
+            ],
+            "metadata": {
+                "description": "The Ubuntu version for the VM. This will pick a fully patched image of this given Ubuntu version."
+            }
+        }
+    },
+    "variables": {
+        "SupportLevels": {
+            "small": "Standard_A2",
+            "medium": "Standard_A3",
+            "large": "Standard_A4"
+        },
+        "resourceGroupName": "[concat(parameters('prefix'), '_rg')]",
+        "storageAccountName": "[concat(parameters('prefix'), 'stor')]",
+        "osDiskName": "[concat(parameters('prefix'), '_osdisk')]",
+        "nicName": "[concat(parameters('prefix'), '_nic')]",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetName": "[concat(parameters('prefix'), '_subnet')]",
+        "subnetPrefix": "10.0.0.0/24",
+        "storageAccountType": "Standard_LRS",
+        "vmName": "[concat(parameters('prefix'), '_vm')]",
+        "vmSize": "[variables('SupportLevels')[parameters('support_level')]]",
+        "virtualNetworkName": "[concat(parameters('prefix'), '_vnet')]",
+        "subnetRef": "[concat(subscription().id, '/resourceGroups/', variables('resourceGroupName'), '/providers/Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'), '/subnets/', variables('subnetName'))]",
+        "nicRef": "[concat(subscription().id, '/resourceGroups/', variables('resourceGroupName'), '/providers/Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/resourceGroups",
+            "apiVersion": "2019-06-01",
+            "location": "[parameters('location')]",
+            "name": "[variables('resourceGroupName')]",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-05-01",
+            "name": "childrenDeployment",
+            "resourceGroup": "[variables('resourceGroupName')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "debugSetting": {
+                    "detailLevel": "requestContent, responseContent"
+                },
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "apiVersion": "2019-04-01",
+                            "type": "Microsoft.Storage/storageAccounts",
+                            "name": "[variables('storageAccountName')]",
+                            "location": "[parameters('location')]",
+                            "sku": {
+                                "name": "[variables('storageAccountType')]"
+                            },
+                            "properties": {}
+                        },
+                        {
+                            "apiVersion": "2019-06-01",
+                            "type": "Microsoft.Network/virtualNetworks",
+                            "name": "[variables('virtualNetworkName')]",
+                            "location": "[parameters('location')]",
+                            "properties": {
+                                "addressSpace": {
+                                    "addressPrefixes": [
+                                        "[variables('addressPrefix')]"
+                                    ]
+                                },
+                                "subnets": [
+                                    {
+                                        "name": "[variables('subnetName')]",
+                                        "properties": {
+                                            "addressPrefix": "[variables('subnetPrefix')]"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "apiVersion": "2019-06-01",
+                            "type": "Microsoft.Network/networkInterfaces",
+                            "name": "[variables('nicName')]",
+                            "location": "[parameters('location')]",
+                            "dependsOn": [
+                                "[variables('virtualNetworkName')]"
+                            ],
+                            "properties": {
+                                "ipConfigurations": [
+                                    {
+                                        "name": "[concat(parameters('prefix'), '_ipconfig')]",
+                                        "properties": {
+                                            "privateIPAllocationMethod": "Dynamic",
+                                            "subnet": {
+                                                "id": "[variables('subnetRef')]"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "apiVersion": "2019-03-01",
+                            "type": "Microsoft.Compute/virtualMachines",
+                            "name": "[variables('vmName')]",
+                            "location": "[parameters('location')]",
+                            "dependsOn": [
+                                "[variables('storageAccountName')]",
+                                "[variables('nicName')]"
+                            ],
+                            "properties": {
+                                "hardwareProfile": {
+                                    "vmSize": "[variables('vmSize')]"
+                                },
+                                "osProfile": {
+                                    "computerName": "[replace(variables('vmName'), '_', '-')]",
+                                    "adminUsername": "[parameters('adminUsername')]",
+                                    "adminPassword": "[parameters('adminPassword')]"
+                                },
+                                "storageProfile": {
+                                    "imageReference": {
+                                        "publisher": "Canonical",
+                                        "offer": "UbuntuServer",
+                                        "sku": "[parameters('ubuntuOSVersion')]",
+                                        "version": "latest"
+                                    },
+                                    "osDisk": {
+                                        "name": "[variables('osDiskName')]",
+                                        "caching": "ReadWrite",
+                                        "createOption": "FromImage"
+                                    }
+                                },
+                                "networkProfile": {
+                                    "networkInterfaces": [
+                                        {
+                                            "id": "[variables('nicRef')]"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    "outputs": {}
+                }
+            }
+        }
+    ]
+}
