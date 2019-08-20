@@ -1,0 +1,243 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "apiProfile": "2018-06-01-profile",
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Name prefix of the resources to create."
+      }
+    },
+    "location": {
+      "allowedValues": [
+        "West US",
+        "East US",
+        "North Europe",
+        "West Europe",
+        "East Asia",
+        "Southeast Asia",
+        "North Central US",
+        "South Central US",
+        "Central US",
+        "East US 2",
+        "Japan East",
+        "Japan West",
+        "Brazil South",
+        "Australia East",
+        "Australia Southeast",
+        "Central India",
+        "South India",
+        "West India",
+        "Canada Central",
+        "Canada East",
+        "West Central US",
+        "West US 2",
+        "UK West",
+        "UK South",
+        "Korea Central",
+        "Korea South",
+        "France Central",
+        "Australia Central",
+        "Australia Central 2",
+        "South Africa North",
+        "UAE North"
+      ],
+      "defaultValue": "West Europe",
+      "type": "string"
+    },
+    "support_level": {
+      "type": "string",
+      "allowedValues": [
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "User name for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      },
+      "minLength": 6,
+      "maxLength": 72
+    },
+    "ubuntuOSVersion": {
+      "type": "string",
+      "defaultValue": "18.04-LTS",
+      "allowedValues": [
+        "14.04.5-LTS",
+        "16.04.0-LTS",
+        "18.04-LTS"
+      ],
+      "metadata": {
+        "description": "The Ubuntu version for the VM. This will pick a fully patched image of this given Ubuntu version."
+      }
+    }
+  },
+  "variables": {
+    "SupportLevels": {
+      "small": "Standard_A2",
+      "medium": "Standard_A3",
+      "large": "Standard_A4"
+    },
+    "storageAccountName": "[concat(parameters('prefix'), 'stor')]",
+    "osDiskName": "[concat(parameters('prefix'), '_osdisk')]",
+    "nic0Name": "[concat(parameters('prefix'), '_nic0')]",
+    "ipConfig0Name": "[concat(parameters('prefix'), '_ipcfg')]",
+    "networkSecurityGroupName": "[concat(parameters('prefix'), '_nsg')]",
+    "addressPrefix": "10.0.0.0/16",
+    "subnetName": "[concat(parameters('prefix'), '_subnet')]",
+    "subnetPrefix": "10.0.0.0/24",
+    "storageAccountType": "Standard_LRS",
+    "vmName": "[concat(parameters('prefix'), '_vm')]",
+    "vmSize": "[variables('SupportLevels')[parameters('support_level')]]",
+    "virtualNetworkName": "[concat(parameters('prefix'), '_vnet')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2019-04-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[variables('storageAccountType')]"
+      },
+      "kind": "StorageV2",
+      "properties": {}
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('subnetPrefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('networkSecurityGroupName')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2019-06-01",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "allow-intranet",
+            "properties": {
+              "priority": 1000,
+              "protocol": "*",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*"
+            }
+          },
+          {
+            "name": "allow-ssh",
+            "properties": {
+              "priority": 1001,
+              "sourceAddressPrefix": "*",
+              "protocol": "Tcp",
+              "destinationPortRange": "22",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('nic0Name')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('virtualNetworkName')]",
+        "[variables('networkSecurityGroupName')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "[variables('ipConfig0Name')]",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2019-03-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[variables('vmName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('storageAccountName')]",
+        "[variables('nic0Name')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[replace(variables('vmName'), '_', '-')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "Canonical",
+            "offer": "UbuntuServer",
+            "sku": "[parameters('ubuntuOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[variables('osDiskName')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nic0Name'))]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "nicInfo": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', variables('nic0Name')))]"
+    }
+  }
+
+}

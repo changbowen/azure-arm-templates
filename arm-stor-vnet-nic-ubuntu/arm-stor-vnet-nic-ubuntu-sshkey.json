@@ -1,0 +1,632 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "apiProfile": "2018-06-01-profile",
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Name prefix of the resources to create."
+      }
+    },
+    "location": {
+      "allowedValues": [
+        "West US",
+        "East US",
+        "North Europe",
+        "West Europe",
+        "East Asia",
+        "Southeast Asia",
+        "North Central US",
+        "South Central US",
+        "Central US",
+        "East US 2",
+        "Japan East",
+        "Japan West",
+        "Brazil South",
+        "Australia East",
+        "Australia Southeast",
+        "Central India",
+        "South India",
+        "West India",
+        "Canada Central",
+        "Canada East",
+        "West Central US",
+        "West US 2",
+        "UK West",
+        "UK South",
+        "Korea Central",
+        "Korea South",
+        "France Central",
+        "Australia Central",
+        "Australia Central 2",
+        "South Africa North",
+        "UAE North"
+      ],
+      "defaultValue": "West Europe",
+      "type": "string"
+    },
+    "support_level": {
+      "type": "string",
+      "allowedValues": [
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "User name for the Virtual Machine."
+      }
+    },
+    "sshKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SSH public key for the virtual machine."
+      }
+    },
+
+    "osImage": {
+      "type": "string",
+      "defaultValue": "Ubuntu 18.04-LTS",
+      "allowedValues": [
+        "UbuntuServer 12.04.3-LTS",
+        "UbuntuServer 12.04.4-LTS",
+        "UbuntuServer 12.04.5-LTS",
+        "UbuntuServer 14.04.0-LTS",
+        "UbuntuServer 14.04.1-LTS",
+        "UbuntuServer 14.04.2-LTS",
+        "UbuntuServer 14.04.3-LTS",
+        "UbuntuServer 14.04.4-LTS",
+        "UbuntuServer 14.04.5-LTS",
+        "UbuntuServer 16.04-LTS",
+        "UbuntuServer 16.04.0-LTS",
+        "UbuntuServer 18.04-LTS",
+        "WindowsServer 2016-Datacenter",
+        "WindowsServer 2016-Datacenter-Server-Core",
+        "WindowsServer 2016-Datacenter-Server-Core-smalldisk",
+        "WindowsServer 2016-Datacenter-smalldisk",
+        "WindowsServer 2016-Datacenter-with-Containers",
+        "WindowsServer 2016-Datacenter-with-RDSH",
+        "WindowsServer 2019-Datacenter",
+        "WindowsServer 2019-Datacenter-Core",
+        "WindowsServer 2019-Datacenter-Core-smalldisk",
+        "WindowsServer 2019-Datacenter-Core-with-Containers",
+        "WindowsServer 2019-Datacenter-Core-with-Containers-smalldisk",
+        "WindowsServer 2019-Datacenter-smalldisk",
+        "WindowsServer 2019-Datacenter-with-Containers",
+        "WindowsServer 2019-Datacenter-with-Containers-smalldisk",
+        "CentOS 6.10",
+        "CentOS 6.5",
+        "CentOS 6.6",
+        "CentOS 6.7",
+        "CentOS 6.8",
+        "CentOS 6.9",
+        "CentOS 7-CI",
+        "CentOS 7.0",
+        "CentOS 7.1",
+        "CentOS 7.2",
+        "CentOS 7.2n",
+        "CentOS 7.3",
+        "CentOS 7.4",
+        "CentOS 7.5",
+        "CentOS 7.6",
+        "RHEL 6.10",
+        "RHEL 6.7",
+        "RHEL 6.8",
+        "RHEL 6.9",
+        "RHEL 7-LVM",
+        "RHEL 7-RAW",
+        "RHEL 7-RAW-CI",
+        "RHEL 7.2",
+        "RHEL 7.3",
+        "RHEL 7.4",
+        "RHEL 7.5",
+        "RHEL 7.6",
+        "RHEL 8"
+      ],
+      "metadata": {
+        "description": "The Ubuntu version for the VM. This will pick a fully patched image of this given Ubuntu version."
+      }
+    },
+    "publicIpEnabled": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether public IP address is assigned to the VM."
+      }
+    },
+    "dnsLabelPrefix": {
+      "type": "string",
+      "defaultValue": "[parameters('prefix')]",
+      "metadata": {
+        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine. Not required if public IP is not used."
+      }
+    }
+  },
+  "variables": {
+    "SupportLevels": {
+      "small": "Standard_A2",
+      "medium": "Standard_A3",
+      "large": "Standard_A4"
+    },
+    "imageDefinitions": {
+      "UbuntuServer 12.04.3-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer", 
+        "imageSku": "12.04.3-LTS"     
+      },
+      "UbuntuServer 12.04.4-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer", 
+        "imageSku": "12.04.4-LTS"     
+      },
+      "UbuntuServer 12.04.5-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "12.04.5-LTS"
+      },
+      "UbuntuServer 14.04.0-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "14.04.0-LTS"
+      },
+      "UbuntuServer 14.04.1-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "14.04.1-LTS"
+      },
+      "UbuntuServer 14.04.2-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "14.04.2-LTS"
+      },
+      "UbuntuServer 14.04.3-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "14.04.3-LTS"
+      },
+      "UbuntuServer 14.04.4-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "14.04.4-LTS"
+      },
+      "UbuntuServer 14.04.5-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "14.04.5-LTS"
+      },
+      "UbuntuServer 16.04-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "16.04-LTS"
+      },
+      "UbuntuServer 16.04.0-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "16.04.0-LTS"
+      },
+      "UbuntuServer 18.04-LTS": {
+        "imagePublisher": "Canonical",
+        "imageOffer": "UbuntuServer",
+        "imageSku": "18.04-LTS"
+      },
+      "WindowsServer 2016-Datacenter": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter"
+      },
+      "WindowsServer 2016-Datacenter-Server-Core": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter-Server-Core"
+      },
+      "WindowsServer 2016-Datacenter-Server-Core-smalldisk": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter-Server-Core-smalldisk"
+      },
+      "WindowsServer 2016-Datacenter-smalldisk": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter-smalldisk"
+      },
+      "WindowsServer 2016-Datacenter-with-Containers": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter-with-Containers"
+      },
+      "WindowsServer 2016-Datacenter-with-RDSH": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter-with-RDSH"
+      },
+      "WindowsServer 2019-Datacenter": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter"
+      },
+      "WindowsServer 2019-Datacenter-Core": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-Core"
+      },
+      "WindowsServer 2019-Datacenter-Core-smalldisk": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-Core-smalldisk"
+      },
+      "WindowsServer 2019-Datacenter-Core-with-Containers": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-Core-with-Containers"
+      },
+      "WindowsServer 2019-Datacenter-Core-with-Containers-smalldisk": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-Core-with-Containers-smalldisk"
+      },
+      "WindowsServer 2019-Datacenter-smalldisk": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-smalldisk"
+      },
+      "WindowsServer 2019-Datacenter-with-Containers": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-with-Containers"
+      },
+      "WindowsServer 2019-Datacenter-with-Containers-smalldisk": {
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2019-Datacenter-with-Containers-smalldisk"
+      },
+      "CentOS 6.10": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "6.10"
+      },
+      "CentOS 6.5": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "6.5"
+      },
+      "CentOS 6.6": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "6.6"
+      },
+      "CentOS 6.7": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "6.7"
+      },
+      "CentOS 6.8": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "6.8"
+      },
+      "CentOS 6.9": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "6.9"
+      },
+      "CentOS 7-CI": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7-CI"
+      },
+      "CentOS 7.0": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.0"
+      },
+      "CentOS 7.1": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.1"
+      },
+      "CentOS 7.2": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.2"
+      },
+      "CentOS 7.2n": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.2n"
+      },
+      "CentOS 7.3": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.3"
+      },
+      "CentOS 7.4": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.4"
+      },
+      "CentOS 7.5": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.5"
+      },
+      "CentOS 7.6": {
+        "imagePublisher": "OpenLogic",
+        "imageOffer": "CentOS",
+        "imageSku": "7.6"
+      },
+      "RHEL 6.10": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "6.10"
+      },
+      "RHEL 6.7": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "6.7"
+      },
+      "RHEL 6.8": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "6.8"
+      },
+      "RHEL 6.9": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "6.9"
+      },
+      "RHEL 7-LVM": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7-LVM"
+      },
+      "RHEL 7-RAW": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7-RAW"
+      },
+      "RHEL 7-RAW-CI": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7-RAW-CI"
+      },
+      "RHEL 7.2": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7.2"
+      },
+      "RHEL 7.3": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7.3"
+      },
+      "RHEL 7.4": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7.4"
+      },
+      "RHEL 7.5": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7.5"
+      },
+      "RHEL 7.6": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "7.6"
+      },
+      "RHEL 8": {
+        "imagePublisher": "RedHat",
+        "imageOffer": "RHEL",
+        "imageSku": "8"
+      }
+    },
+    "storageAccountName": "[concat(parameters('prefix'), 'stor')]",
+    "osDiskName": "[concat(parameters('prefix'), '_osdisk')]",
+    "nic0Name": "[concat(parameters('prefix'), '_nic0')]",
+    "ipConfig0Name": "[concat(parameters('prefix'), '_ipcfg')]",
+    "networkSecurityGroupName": "[concat(parameters('prefix'), '_nsg')]",
+    "addressPrefix": "10.0.0.0/16",
+    "subnetName": "[concat(parameters('prefix'), '_subnet')]",
+    "subnetPrefix": "10.0.0.0/24",
+    "publicIpAddressName": "[concat(parameters('prefix'), '_publicIp')]",
+    "publicIpAddress": {
+      "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+    },
+    "storageAccountType": "Standard_LRS",
+    "vmName": "[concat(parameters('prefix'), '_vm')]",
+    "vmSize": "[variables('SupportLevels')[parameters('support_level')]]",
+    "virtualNetworkName": "[concat(parameters('prefix'), '_vnet')]",
+    "linuxConfiguration": {
+      "disablePasswordAuthentication": true,
+      "ssh": {
+        "publicKeys": [
+          {
+            "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+            "keyData": "[parameters('sshKey')]"
+          }
+        ]
+      }
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2019-04-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[variables('storageAccountType')]"
+      },
+      "kind": "StorageV2",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2018-11-01",
+      "name": "[variables('publicIpAddressName')]",
+      "location": "[parameters('location')]",
+      "condition": "[parameters('publicIpEnabled')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('dnsLabelPrefix')]"
+        }
+      }
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('subnetPrefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('networkSecurityGroupName')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2019-06-01",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "allow-intranet",
+            "properties": {
+              "priority": 1000,
+              "protocol": "*",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*"
+            }
+          },
+          {
+            "name": "allow-ssh",
+            "properties": {
+              "priority": 1001,
+              "sourceAddressPrefix": "*",
+              "protocol": "Tcp",
+              "destinationPortRange": "22",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('nic0Name')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('publicIpAddressName')]",
+        "[variables('virtualNetworkName')]",
+        "[variables('networkSecurityGroupName')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "[variables('ipConfig0Name')]",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": "[if(parameters('publicIpEnabled'), variables('publicIpAddress'), json('null'))]",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2019-03-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[variables('vmName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('storageAccountName')]",
+        "[variables('nic0Name')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[replace(variables('vmName'), '_', '-')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('sshKey')]",
+          "linuxConfiguration": "[variables('linuxConfiguration')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imageDefinitions')[parameters('osImage')]['imagePublisher']]",
+            "offer": "[variables('imageDefinitions')[parameters('osImage')]['imageOffer']]",
+            "sku": "[variables('imageDefinitions')[parameters('osImage')]['imageSku']]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[variables('osDiskName')]",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nic0Name'))]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "external hostname": {
+      "condition": "[parameters('publicIpEnabled')]",
+      "type": "string",
+      "value": "[reference(variables('publicIpAddressName')).dnsSettings.fqdn]"
+    },
+    "external ip address": {
+      "condition": "[parameters('publicIpEnabled')]",
+      "type": "string",
+      "value": "[reference(variables('publicIpAddressName')).ipAddress]"
+    },
+    "internal hostname":{
+      "type": "string",
+      "value": "[reference(variables('nic0Name')).dnsSettings.internalDomainNameSuffix]"
+    },
+    "internal ip address":{
+      "type": "string",
+      "value": "[reference(variables('nic0Name')).ipConfigurations[0].properties.privateIPAddress]"
+    },
+    "external ssh command": {
+      "condition": "[parameters('publicIpEnabled')]",
+      "type": "string",
+      "value": "[concat('ssh ', parameters('adminUsername'), '@', reference(variables('publicIpAddressName')).dnsSettings.fqdn)]"
+    },
+    "internal ssh command": {
+      "type": "string",
+      "value": "[concat('ssh ', parameters('adminUsername'), '@', reference(variables('nic0Name')).ipConfigurations[0].properties.privateIPAddress)]"
+    }
+  }
+
+}
