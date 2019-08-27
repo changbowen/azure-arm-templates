@@ -6,7 +6,7 @@
     "prefix": {
       "type": "string",
       "metadata": {
-        "description": "Name prefix of the resources to create."
+        "description": "Name prefix of the resources to create. All underscores will be converted to dashes."
       }
     },
     "location": {
@@ -60,16 +60,15 @@
         "description": "User name for the Virtual Machine."
       }
     },
-    "sshKey": {
+    "adminPassword": {
       "type": "securestring",
       "metadata": {
-        "description": "SSH public key for the virtual machine."
+        "description": "Windows account password or SSH key if it's a Linux."
       }
     },
-
     "osImage": {
       "type": "string",
-      "defaultValue": "Ubuntu 18.04-LTS",
+      "defaultValue": "UbuntuServer 18.04-LTS",
       "allowedValues": [
         "UbuntuServer 12.04.3-LTS",
         "UbuntuServer 12.04.4-LTS",
@@ -139,18 +138,20 @@
     },
     "dnsLabelPrefix": {
       "type": "string",
-      "defaultValue": "[parameters('prefix')]",
+      "defaultValue": "[replace(parameters('prefix'), '_', '-')]",
       "metadata": {
-        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine. Not required if public IP is not used."
+        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine. Not required if public IP is not used. All underscores will be converted to dashes."
       }
     }
   },
   "variables": {
+    "prefix": "[replace(parameters('prefix'), '_', '-')]",
     "SupportLevels": {
       "small": "Standard_A2",
       "medium": "Standard_A3",
       "large": "Standard_A4"
     },
+    "osType": "[if(equals(variables('imageOffer'), 'WindowsServer'), 'Windows', 'Linux')]",
     "imageDefinitions": {
       "UbuntuServer 12.04.3-LTS": {
         "imagePublisher": "Canonical",
@@ -423,31 +424,61 @@
         "imageSku": "8"
       }
     },
-    "storageAccountName": "[concat(parameters('prefix'), 'stor')]",
-    "osDiskName": "[concat(parameters('prefix'), '_osdisk')]",
-    "nic0Name": "[concat(parameters('prefix'), '_nic0')]",
-    "ipConfig0Name": "[concat(parameters('prefix'), '_ipcfg')]",
-    "networkSecurityGroupName": "[concat(parameters('prefix'), '_nsg')]",
+    "imagePublisher": "[variables('imageDefinitions')[parameters('osImage')]['imagePublisher']]",
+    "imageOffer": "[variables('imageDefinitions')[parameters('osImage')]['imageOffer']]",
+    "imageSku": "[variables('imageDefinitions')[parameters('osImage')]['imageSku']]",
+    "storageAccountName": "[concat(replace(replace(variables('prefix'), '-', ''), '_', ''), 'stor')]",
+    "storageAccountType": "Standard_LRS",
+    "vm01Name": "[concat(variables('prefix'), '-vm01')]",
+    "vm01Size": "[variables('SupportLevels')[parameters('support_level')]]",
+    "osDiskName": "[concat(variables('prefix'), '-osdisk01')]",
+    "nic01Name": "[concat(variables('vm01Name'), '-nic01')]",
+    "virtualNetworkName": "[concat(variables('prefix'), '-vnet')]",
+    "ipConfig01Name": "[concat(variables('vm01Name'), '-ipcfg01')]",
+    "networkSecurityGroupName": "[concat(variables('prefix'), '-nsg')]",
     "addressPrefix": "10.0.0.0/16",
-    "subnetName": "[concat(parameters('prefix'), '_subnet')]",
+    "subnetName": "[concat(variables('prefix'), '-subnet')]",
     "subnetPrefix": "10.0.0.0/24",
-    "publicIpAddressName": "[concat(parameters('prefix'), '_publicIp')]",
+    "publicIpAddressName": "[concat(variables('prefix'), '-pip')]",
     "publicIpAddress": {
       "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
     },
-    "storageAccountType": "Standard_LRS",
-    "vmName": "[concat(parameters('prefix'), '_vm')]",
-    "vmSize": "[variables('SupportLevels')[parameters('support_level')]]",
-    "virtualNetworkName": "[concat(parameters('prefix'), '_vnet')]",
     "linuxConfiguration": {
       "disablePasswordAuthentication": true,
       "ssh": {
         "publicKeys": [
           {
             "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-            "keyData": "[parameters('sshKey')]"
+            "keyData": "[parameters('adminPassword')]"
           }
         ]
+      }
+    },
+    "windowsConfiguration": {},
+    "nsgRuleAllowSsh": {
+      "name": "allow-ssh",
+      "properties": {
+        "priority": 1001,
+        "sourceAddressPrefix": "*",
+        "protocol": "Tcp",
+        "destinationPortRange": "22",
+        "access": "Allow",
+        "direction": "Inbound",
+        "sourcePortRange": "*",
+        "destinationAddressPrefix": "*"
+      }
+    },
+    "nsgRuleAllowRdp": {
+      "name": "allow-rdp",
+      "properties": {
+        "priority": 1002,
+        "sourceAddressPrefix": "*",
+        "protocol": "Tcp",
+        "destinationPortRange": "3389",
+        "access": "Allow",
+        "direction": "Inbound",
+        "sourcePortRange": "*",
+        "destinationAddressPrefix": "*"
       }
     }
   },
@@ -517,26 +548,14 @@
               "destinationPortRange": "*"
             }
           },
-          {
-            "name": "allow-ssh",
-            "properties": {
-              "priority": 1001,
-              "sourceAddressPrefix": "*",
-              "protocol": "Tcp",
-              "destinationPortRange": "22",
-              "access": "Allow",
-              "direction": "Inbound",
-              "sourcePortRange": "*",
-              "destinationAddressPrefix": "*"
-            }
-          }
+          "[if(equals(variables('osType'), 'Windows'), variables('nsgRuleAllowRdp'), variables('nsgRuleAllowSsh'))]"
         ]
       }
     },
     {
       "apiVersion": "2019-06-01",
       "type": "Microsoft.Network/networkInterfaces",
-      "name": "[variables('nic0Name')]",
+      "name": "[variables('nic01Name')]",
       "location": "[parameters('location')]",
       "dependsOn": [
         "[variables('publicIpAddressName')]",
@@ -546,7 +565,7 @@
       "properties": {
         "ipConfigurations": [
           {
-            "name": "[variables('ipConfig0Name')]",
+            "name": "[variables('ipConfig01Name')]",
             "properties": {
               "privateIPAllocationMethod": "Dynamic",
               "publicIPAddress": "[if(parameters('publicIpEnabled'), variables('publicIpAddress'), json('null'))]",
@@ -561,27 +580,28 @@
     {
       "apiVersion": "2019-03-01",
       "type": "Microsoft.Compute/virtualMachines",
-      "name": "[variables('vmName')]",
+      "name": "[variables('vm01Name')]",
       "location": "[parameters('location')]",
       "dependsOn": [
         "[variables('storageAccountName')]",
-        "[variables('nic0Name')]"
+        "[variables('nic01Name')]"
       ],
       "properties": {
         "hardwareProfile": {
-          "vmSize": "[variables('vmSize')]"
+          "vmSize": "[variables('vm01Size')]"
         },
         "osProfile": {
-          "computerName": "[replace(variables('vmName'), '_', '-')]",
+          "computerName": "[replace(variables('vm01Name'), '_', '-')]",
           "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('sshKey')]",
-          "linuxConfiguration": "[variables('linuxConfiguration')]"
+          "adminPassword": "[parameters('adminPassword')]",
+          "linuxConfiguration": "[if(equals(variables('osType'), 'Linux'), variables('linuxConfiguration'), json('null'))]",
+          "windowsConfiguration": "[if(equals(variables('osType'), 'Windows'), variables('windowsConfiguration'), json('null'))]"
         },
         "storageProfile": {
           "imageReference": {
-            "publisher": "[variables('imageDefinitions')[parameters('osImage')]['imagePublisher']]",
-            "offer": "[variables('imageDefinitions')[parameters('osImage')]['imageOffer']]",
-            "sku": "[variables('imageDefinitions')[parameters('osImage')]['imageSku']]",
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[variables('imageSku')]",
             "version": "latest"
           },
           "osDisk": {
@@ -592,7 +612,7 @@
         "networkProfile": {
           "networkInterfaces": [
             {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nic0Name'))]"
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nic01Name'))]"
             }
           ]
         }
@@ -600,23 +620,28 @@
     }
   ],
   "outputs": {
+    "external ip configuration": {
+      "condition": "[parameters('publicIpEnabled')]",
+      "type": "object",
+      "value": "[reference(variables('publicIpAddressName'))]"
+    },
     "external hostname": {
       "condition": "[parameters('publicIpEnabled')]",
       "type": "string",
       "value": "[reference(variables('publicIpAddressName')).dnsSettings.fqdn]"
     },
     "external ip address": {
-      "condition": "[parameters('publicIpEnabled')]",
+      "condition": "[bool('false')]",
       "type": "string",
       "value": "[reference(variables('publicIpAddressName')).ipAddress]"
     },
     "internal hostname":{
       "type": "string",
-      "value": "[reference(variables('nic0Name')).dnsSettings.internalDomainNameSuffix]"
+      "value": "[reference(variables('nic01Name')).dnsSettings.internalDomainNameSuffix]"
     },
     "internal ip address":{
       "type": "string",
-      "value": "[reference(variables('nic0Name')).ipConfigurations[0].properties.privateIPAddress]"
+      "value": "[reference(variables('nic01Name')).ipConfigurations[0].properties.privateIPAddress]"
     },
     "external ssh command": {
       "condition": "[parameters('publicIpEnabled')]",
@@ -625,7 +650,7 @@
     },
     "internal ssh command": {
       "type": "string",
-      "value": "[concat('ssh ', parameters('adminUsername'), '@', reference(variables('nic0Name')).ipConfigurations[0].properties.privateIPAddress)]"
+      "value": "[concat('ssh ', parameters('adminUsername'), '@', reference(variables('nic01Name')).ipConfigurations[0].properties.privateIPAddress)]"
     }
   }
 
